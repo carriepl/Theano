@@ -43,6 +43,7 @@ you out.
     debug_faq
     profiling
     extending_theano
+    extending_theano_c
     faq
     python-memory-management
     multi_cores
