@@ -204,8 +204,6 @@ class GpuDnnConvDesc(GpuOp):
     %(fail)s
   }
 
-#if defined(CUDNN_VERSION) && CUDNN_VERSION >= 30
-
   int pad[%(nb_dim)d] = {%(pad_str)s};
   int subsample[%(nb_dim)d] = {%(subsample_str)s};
   int upscale[%(nb_dim)d] = {%(upscale_str)s};
@@ -227,15 +225,10 @@ class GpuDnnConvDesc(GpuOp):
     }
   }
 
-  err = cudnnSetConvolutionNdDescriptor_v3(
-  %(desc)s,
-  %(nb_dim)d,
-  pad, subsample, upscale,
-  %(conv_flag)s, %(precision)s
-  );
-#else
-  PyErr_Format(PyExc_RuntimeError, "could not set op descriptor: CUDNN_VERSION must be >= 30");
-#endif
+  err = cudnnSetConvolutionNdDescriptor(%(desc)s, %(nb_dim)d, pad,
+                                        subsample, upscale, %(conv_flag)s,
+                                        %(precision)s);
+
   if (err != CUDNN_STATUS_SUCCESS) {
     PyErr_Format(PyExc_RuntimeError, "could not set op descriptor: %%s",
                  cudnnGetErrorString(err));
@@ -248,7 +241,7 @@ class GpuDnnConvDesc(GpuOp):
            upscale_str=upscale_str, nb_dim=nb_dim, precision=precision)
 
     def c_code_cache_version(self):
-        return (4, version())
+        return (5, version())
 
 # scalar constants
 _zero = constant(numpy.asarray(0.0, dtype='float32'))
@@ -1340,8 +1333,8 @@ class GpuDnnPoolDesc(GpuOp):
     int win[%(nd)d] = {%(win)s};
     int pad[%(nd)d] = {%(pad)s};
     int str[%(nd)d] = {%(str)s};
-    err = cudnnSetPoolingNdDescriptor(
-      %(desc)s, %(mode_flag)s, %(nd)d,
+    err = cudnnSetPoolingNdDescriptor_v4(
+      %(desc)s, %(mode_flag)s, CUDNN_PROPAGATE_NAN, %(nd)d,
       win, pad, str);
   }
   if (err != CUDNN_STATUS_SUCCESS) {
@@ -1356,7 +1349,7 @@ class GpuDnnPoolDesc(GpuOp):
            str=', '.join(str(s) for s in self.stride))
 
     def c_code_cache_version(self):
-        return (3, version())
+        return (4, version())
 
 
 class GpuDnnPool(DnnBase):
@@ -1522,8 +1515,8 @@ for(int i = 0; i < %(nd)d; i++) {
 for(int i = 0; i < %(nd)d; i++) {
    str[i] = *((npy_intp*)PyArray_GETPTR1(%(str)s, i));
 }
-err = cudnnSetPoolingNdDescriptor(
-    pool%(name)s, %(mode_flag)s, %(nd)d,
+err = cudnnSetPoolingNdDescriptor_v4(
+    pool%(name)s, %(mode_flag)s, CUDNN_PROPAGATE_NAN, %(nd)d,
     win, pad, str);
 
 if (err != CUDNN_STATUS_SUCCESS) {
@@ -1589,7 +1582,7 @@ if (err != CUDNN_STATUS_SUCCESS) {
         return [[1], [0], [0], [0]]
 
     def c_code_cache_version(self):
-        return (8, version())
+        return (9, version())
 
 
 class GpuDnnPoolGrad(DnnBase):
@@ -1800,8 +1793,8 @@ for(int i = 0; i < %(nd)d; i++) {
 for(int i = 0; i < %(nd)d; i++) {
    str[i] = *((npy_intp*)PyArray_GETPTR1(%(str)s, i));
 }
-err%(name)s = cudnnSetPoolingNdDescriptor(
-    pool%(name)s, %(mode_flag)s, %(nd)d,
+err%(name)s = cudnnSetPoolingNdDescriptor_v4(
+    pool%(name)s, %(mode_flag)s, CUDNN_PROPAGATE_NAN, %(nd)d,
     win, pad, str);
 
 if (err%(name)s != CUDNN_STATUS_SUCCESS) {
@@ -1844,7 +1837,7 @@ if (err%(name)s != CUDNN_STATUS_SUCCESS) {
            ws=ws, pad=pad, str=stride)
 
     def c_code_cache_version(self):
-        return (8, version())
+        return (9, version())
 
     def infer_shape(self, node, shape):
         return [shape[0]]
